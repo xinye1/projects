@@ -1,0 +1,405 @@
+---
+title: "Visualising Brexit Votes with Leaflet and Cartogram"
+author: "Xinye Li"
+date: "27 March 2017"
+output: html_document
+descritpion: 'A tutorial on manipulating shapefiles, using `cartogram` and `leaftlet` packages with R'
+---
+
+On the eve of triggering Article 50, I think it's semi-fitting to revisit the Brexit results.
+
+### What's the topic?
+The [2016 Brexit catastrophy](https://en.wikipedia.org/wiki/United_Kingdom_European_Union_membership_referendum,_2016) (a.k.a.  United Kingdom European Union membership referendum, 2016), specifically the visualisation of the results on a map, with each area (Local Authority in this case) proportioned by the number of votes, in the hope that it could capture the variety of sentiment on the topic across the country. The use of Cartogram should be an obvious choice in distorting the map areas, and while there have been plenty visualisation of such kind for General Elections, it has not been done for the Brexit.
+
+### Is there anything new I'm getting?
+After [so](http://www.bbc.co.uk/news/uk-politics-36616028) [much](https://medium.com/@jakeybob/brexit-maps-d70caab7315e#.k8mztsqz1) [has](http://www.telegraph.co.uk/news/0/leave-or-remain-eu-referendum-results-and-live-maps/) [been](http://www.thepoke.co.uk/2017/01/13/post-brexit-map-uk-accurate-funny/) done on visualising the voting result, there doesn't seem to be a map that represent the split based on the number of votes for each region. I thought I'd combine the following to create just that with R:
+
+* **Shapefile** - a ubiquitous geospatial vector data format. I shall demonstrate the ease of manipulating the file with R.
+* **Cartogram** - a mapping distortion technique for representing geographic data in a striking way.
+* **Hexagon** - a type of mapping distortion focused on representing geographic units with a uniform area size.
+* **Leaflet** - a modern and popular Javascript package for visualsation in the browser.
+
+### What are the benefits, if any?
+
+* **Hopefully I can bring the UK Hexagon Shapefiles to more people's attention**. After some searching I have only found a couple of sources for UK hexagon maps ([Parliamentary Constituencies](http://www.arcgis.com/home/item.html?id=15baaa6fecd54aa4b7250780b6534682) and [Local Authorities](http://www.arcgis.com/home/item.html?id=593037bc399e460bb7c6c631ceff67b4) along with a [tool](https://www.arcgis.com/home/item.html?id=d348614c97264ae19b0311019a5f2276) to create them) published by Esri (while there are plenty for the US, e.g. the [`tilegramsR`](https://rpubs.com/bhaskarvk/tilegramsR) package gives you several beautiful options). The votes data is aggregated to the Local Authority level, so the corresponding shapefile shall be used. 
+
+* **Hexagon maps are great for simplifying complicated geo-shapes while preserving all relevant information**. Cartogram is a great way to emphasise data features on a map. However in the case of the UK, there are close to 400 local authorities, plotting them all on the with their distorted irregular shapes would not be so visually pleasant or informative. When the starting point is a hexagon map - a specific type of cartogram, however, the features are laid out in a regular grid, and after distortion it is much easier on the eyes.
+
+* **Leaflet is great for investigating data in detail**. Faced with a map of a crowded bunch of colour shapes, one's first instinct (especially if you are familiar with the UK geography) would be to work out which shape respresents which Local Authority, and the only way is of course an interactive map that can show you the name and the vote counts of a shape.
+
+
+### Get down to the business
+
+#### The votes data
+The data source is [The Electoral Commssion](http://www.electoralcommission.org.uk/find-information-by-subject/elections-and-referendums/past-elections-and-referendums/eu-referendum/electorate-and-count-information) and the CSV can be downloaded directly from [here](http://www.electoralcommission.org.uk/__data/assets/file/0014/212135/EU-referendum-result-data.csv).
+
+```{r ini_csv, message=FALSE, warning=FALSE}
+csv_url <- 'http://www.electoralcommission.org.uk/__data/assets/file/0014/212135/EU-referendum-result-data.csv'
+
+# For reproducibility the CSV is also downloaded in the data/ folder
+# download.file(url = csv_url, destfile = paste0('./data/', regmatches(csv_url, regexpr('[^/]+$', csv_url))))
+
+raw_votes <- read.csv(csv_url, stringsAsFactors = F)
+
+# Create names_votes to match against the shape file later
+names_votes <- raw_votes$Area
+```
+
+So there are `r length(names_votes)` Local Authorities. Let's get the appropriate shapefile, and check out what data is already attached:
+
+#### The hexagon shapefile
+```{r ini_hex}
+pacman::p_load(rgdal, dplyr)
+la_shp <- readOGR(dsn = './data/GB_Hex_Cartogram_LAs', layer = "GB_Hex_Cartogram_LAs")
+names_shp <- as.character(la_shp$LAD12NM) # for matching the CSV file later
+head(la_shp@data)
+```
+
+
+Let's plot it against an actual map to get a sense of it. To do that let's project it to WGS84 (`EPSG:4326`) measured in degrees of latitude / longitude, which also allows to set up the bouding box easier.
+
+*Note: using ggplot to overlay polygons on a map requires turning the shapefile into a data frame by using `broom::tidy()`. After running  the function if you encounter this error `Error: isTRUE(gpclibPermitStatus()) is not TRUE` on Windows, make sure Rtools is installed, then install package `gpclib` using `install.packages('gpclib', type = 'source')`. To verify everything is fine, run `gpclibPermitStatus()` and `gpclibPermit()`, if both return `True` then you are all set.*
+
+```{r ini_hex_vis, message=FALSE, warning=FALSE}
+pacman::p_load(broom, ggplot2, ggmap)
+
+# Re-project the map into the WGS (World Geodetic System, i.e. longitudes and latitudes)
+la_84 <- spTransform(la_shp, CRS('+init=epsg:4326'))
+la_84_df <- la_84 %>% tidy(region = "LAD12NM")
+b <- bbox(la_84)
+basemap <- ggmap(
+  get_map(location = b,
+          source = "stamen",
+          maptype = "watercolor",
+          crop = T))
+basemap + geom_polygon(
+  data = la_84_df,
+  aes(x = long, y = lat, group = group),
+  fill = 'darkorchid',
+  alpha = 0.7) + xlab('Longitude') + ylab('Latitude')
+```
+
+So the hexagon map is roughly based on the actual coordicates of the features.
+
+But wait, the Local Authority shapefile has a flaw - it is missing Northern Ireland and Gibraltar, confirmed by comparing the names from the CSV and the shapefile (The Vale of Glamorgan also has different names in the two files, let's deal with that later)
+
+```{r name_compare}
+setdiff(names_votes, names_shp)
+setdiff(names_shp, names_votes)
+```
+
+Let's create them!
+
+#### Create features (polygons) in a shapefile
+
+Manipulating the shapefile can be a daunting task, as it has multiple layers of nested elements like this:
+
+```{r}
+str(la_84, max.level = 2)
+```
+
+And inside the `@ polygons` element are all the features (points, lines and polygons), for each of them there is this:
+
+```{r}
+str(la_84@polygons[[1]], max.level = 2)
+```
+
+Now that the structure is clearly laid out, this is what we need to do
+
+1. create a new polygon by copying from one of the existing ones
+2. work out the coordinates for the new polygon
+3. change the coordinates of the polygon
+4. append the polygon with the existing ones
+5. reconstruct the `@ polygons` list
+6. recreate the shapefiles with the polygons list and other values from the original shapefile
+
+The plan is to create NI and GI features by copying one of the polygons near by, shift it to an appropriate location, and update the attributes and data to reflect NI and GI respectively. So I decided using the British National Grid projection (`EPSG:27700`), as measured in meters, would be a better choice, as the shift can be explicit and more understandable.
+
+Barrow-in-Furness is a good choice as a neighbouring polygon. NI is esitmated to be 100,000 meters to the west, and GI is 600,000 meters to the south of NI. (the step numbers in the code correspond to the above five steps)
+
+
+```{r create_ni_gi}
+la_bng <- spTransform(la_shp, CRS('+init=epsg:27700'))
+
+
+# 1.
+ind_ref <- which(la_bng$LAD12NM == 'Barrow-in-Furness')
+ni <- la_bng@polygons[[ind_ref]]
+ni_coors <- ni@Polygons[[1]]@coords
+
+
+# 2.
+# NI seems around 150,000 meters to the west
+# GI 500,000 meters to the south
+ni_shiftx <- -100000
+gi_shifty <- -600000
+
+# Shape coordinates
+ni_coors[, 1] <- ni_coors[, 1] + ni_shiftx
+gi_coors <- ni_coors
+gi_coors[, 2] <- ni_coors[, 2] + gi_shifty
+
+# Labpt coordinates
+ni_labpt_x <- ni@labpt[1] - ni_shiftx
+ni_labpt_y <- ni@labpt[2]
+ni_labpt <- c(ni_labpt_x, ni_labpt_y)
+
+gi_labpt_x <- ni@labpt[1] + ni_shiftx
+gi_labpt_y <- ni@labpt[2] + gi_shifty
+gi_labpt <- c(gi_labpt_x, gi_labpt_y)
+
+# 3.
+# Replace coordiates and ID in ni and gi
+ni_poly <- ni
+gi_poly <- ni
+ni_poly@Polygons[[1]]@coords <- ni_coors
+gi_poly@Polygons[[1]]@coords <- gi_coors
+ni_poly@Polygons[[1]]@labpt <- ni_labpt
+gi_poly@Polygons[[1]]@labpt <- gi_labpt
+ni_poly@labpt <- ni_labpt
+gi_poly@labpt <- gi_labpt
+new_poly_ids <- c('380', '381')
+ni_poly@ID <- new_poly_ids[1]
+gi_poly@ID <- new_poly_ids[2]
+
+
+# 4.
+# Construct the new SpatialPolygons
+la_bng_polygons <- c(la_bng@polygons, ni_poly, gi_poly)
+
+
+# 5.
+# Recreate the polygon list
+la_bng_spgs <- SpatialPolygons(la_bng_polygons)
+
+
+# 6.
+# Construct the new SpatialPolygonsDataFrame
+proj4string(la_bng_spgs) <- proj4string(la_bng)
+
+# Create the two extra data points for the dataframe
+ni_lad12cn <- raw_votes[raw_votes$Area == 'Northern Ireland', 'Area_Code']
+gi_lad12cn <- raw_votes[raw_votes$Area == 'Gibraltar', 'Area_Code']
+new_data <- data.frame(
+  OBJECTID = c('380', '381'),
+  LAD12CD = c(ni_lad12cn, gi_lad12cn),
+  LAD12NM = c('Northern Ireland', 'Gibraltar'),
+  Shape_Leng = mean(la_bng$Shape_Leng),
+  Shape_Area = mean(la_bng$Shape_Area))
+la_new_data <- rbind(la_bng@data, new_data)
+
+# Make sure the row IDs of the new rows coincide the external dataframe we will join later
+rownames(la_new_data)[(nrow(la_new_data) - 1):nrow(la_new_data)] <- new_poly_ids
+la_bng_new <- SpatialPolygonsDataFrame(la_bng_spgs, la_new_data)
+```
+
+
+Let's check that the polygons have indeed been created:
+
+```{r vis_hex_new, message=FALSE, warning=FALSE}
+la_84_new <- spTransform(la_bng_new, CRS('+init=epsg:4326'))
+la_84_new_df <- la_84_new %>% tidy(region = "LAD12NM")
+ggmap(
+  get_map(location = bbox(la_84_new),
+          source = "stamen",
+          maptype = "watercolor",
+          crop = T)) +
+  geom_polygon(
+    data = la_84_new_df,
+    aes(x = long, y = lat, group = group),
+    fill = 'darkorchid',
+    alpha = 0.7) + xlab('Longitude') + ylab('Latitude')
+
+```
+
+Much better. Even though they do not exactly fall inside the geospatial boundaries of the actual areas, it's good enough for the hexagon map.
+
+Before moving on, let's fix the little issue with The Vale of Glamorgan:
+
+```{r fix_glamorgan}
+raw_votes$Area[grepl('glamorgan', raw_votes$Area, ignore.case = T)] <- 'The Vale of Glamorgan'
+```
+
+
+#### Voting results on a hexagon map
+
+Prior to this point we have been working with the voting data and the shapefile separately, now it's time to combine the voting data and the map:
+
+```{r}
+la_bng_new <- la_bng_new %>% merge(raw_votes, by.x = 'LAD12NM', by.y = 'Area')
+la_bng_new$Result <- ifelse(la_bng_new$Remain > la_bng_new$Leave, 'Remain', 'Leave') %>% as.factor
+```
+
+Then we can plot the hexagon:
+
+```{r}
+cols <- c('#ff6666', '#66ccff')
+plot(la_bng_new, col = cols[la_bng_new$Result], main = 'EU Referendum 2016 Results')
+legend('topright', legend = c('Leave', 'Remain'), bty = 'n', fill = cols)
+
+```
+
+
+As one would expect, the voting results are clear (direction-wise) for each Local Authority, and we are indeed seeing London the Remain capital and the surrounding areas being more prominently represented, but the map is still mis-representing the relative valid votes of each area, i.e. regardless of the number of valid votes, all areas are of the same size.
+
+Let's try rescaling the map using the `Valid_Votes` inside the votes data.
+
+There are various options for creating a cartogram map, notably [`Rcartogram`](https://github.com/omegahat/Rcartogram) and [`getcartr`](https://github.com/chrisbrunsdon/getcartr) packages have been used together (e.g. Michael Höhle's [nice post](http://staff.math.su.se/hoehle/blog/2016/10/10/cartograms.html)). The downside of those is that the installation process can be complicated (see [this Stack Overflow answer](http://stackoverflow.com/a/31632361/2708177) for a complete process).  for a simple solution the `cartogram` package on CRAN is a good alternative:
+
+
+```{r carto_vis1, message=FALSE, warning=FALSE}
+
+# Plot cartogram
+library(cartogram)
+carto <- cartogram(la_bng_new, 'Valid_Votes')
+carto_df <- carto %>% tidy(region = 'LAD12NM')
+carto_df <- carto_df %>%
+  left_join(
+    data.frame(id = as.character(la_bng_new$LAD12NM),
+               Result = as.factor(la_bng_new$Result),
+               stringsAsFactors = F))
+
+ggplot() + theme_bw() + theme_nothing(legend = TRUE) + coord_fixed() +
+  geom_polygon(data = carto_df, colour = 'gray40',
+               aes(x = long, y = lat, group = id,
+                   fill = Result)) +
+  ggtitle('EU Referendum 2016 Results Cartogram')
+```
+
+This makes slightly more sense, but there are still a couple issues:
+
+The proportion of Leave and Remain varies across regions wildly:  
+```{r vote_ratio, fig.width = 10}
+pacman::p_load(ggplot2)
+ggplot(data = raw_votes,
+       aes(x = Pct_Remain, fill = Region, col = Region)) +
+  geom_density(alpha = 0.5) + theme_bw() +
+  xlim(0, 100) + ylim(0, 0.09) +
+  geom_vline(aes(xintercept = 50)) +
+  facet_wrap(~Region) + theme(legend.position="none") +
+  xlab('Percentage of Remain votes') +
+  ylab('Distribution density') +
+  ggtitle('Remain vote distribution by Region')
+
+```  
+*Note, for Northern Ireland there is only one data point (`r paste0('@ ', sprintf('%.1f', raw_votes$Pct_Remain[raw_votes$Area == 'Northern Ireland']), '%')`), hence the invisible verticle line in the density graph.*  
+
+
+Therefore we must not lose the information on the map.
+
+Further more, aren't you just dying to work out which area is which?
+
+Let's get straight down to `leaflet` to address all of the above.
+
+### Plotting cartogram with `leaflet`
+
+Before plotting the map we need to take care of a few things:
+
+#### More dramatic scaling
+
+The above cartogram looks fine, it probably represent the valide votes fairly accurately. But for aesthetic purposes, I think a more dramatic scaling would be more interesting, this means the difference of polygons are exaggerated and some areas are over shaddowing others in size, but that would make the visualisation more telling, and easier to grab attention, which is a major point of data visualisation. So instead of using `Valid_Votes` we use the square of it.
+
+
+#### Information tag
+
+Taking advantage of Javascript we can include much information dynamically, e.g. showing the votes when the mouse cursor hovers on the polygons. These need to be created as separate HTML tags. 
+
+#### Colouring for votes percentage
+
+There is a wide range of votes percentage (% of Remain from 24% to 96%), This should be differentiated by colours. The last thing we need to take care off is a small tweak on the scaler for Gibraltar. Gibraltar being a British overseas territory (with a population of just over 30,000, located at the bottom of Spain) naturally voted overwhelmingly Remain (yes, that one with 96%). Allowing the outlier to be part of the colour palette would push everything close hence showing less disguishable colours, and for this reason, we are going to make the outlier value the same as the second highest (Lamberth at 79%, and by now you probably know where I stand on the [McCandless vs. Tufte debate](https://www.themediaflow.com/blog/making-great-infographics-the-data-vs-design-debate)).
+
+```{r carto_leaflet, message=FALSE, warning=FALSE}
+pacman::p_load(leaflet)
+cols1 <- c("#ad0037", "#004080")
+# Transforming the scaling factor Valid_Votes
+la_bng_new$Valid_Votes_sq <- la_bng_new$Valid_Votes ^ 2
+carto_x <- cartogram(la_bng_new, 'Valid_Votes_sq')
+
+# Create vote percentage colour scale
+carto_x$Pct_Remain_2 <- carto_x$Pct_Remain
+carto_x$Pct_Remain_2[carto_x$LAD12NM == 'Gibraltar'] = carto_x$Pct_Remain_2[carto_x$LAD12NM == 'Lambeth']
+carto_x$fill_op <- abs(carto_x$Pct_Remain_2 - 50) / max(abs(carto_x$Pct_Remain_2 - 50))
+
+# Create the vote result HTML tag
+labels2 <- sprintf(
+  '<strong>%s</strong><br/>Remain: %s (%.0f%%)<br/>Leave: %s (%.0f%%)',
+  carto$LAD12NM,
+  prettyNum(carto$Remain, big.mark = ','), 100 * carto$Remain / carto$Valid_Votes,
+  prettyNum(carto$Leave, big.mark = ','), 100 * carto$Leave / carto$Valid_Votes
+) %>% lapply(htmltools::HTML)
+
+# Leaflet CRS object for WGS84 projection
+epsg4326 <- leafletCRS(
+  crsClass = 'L.Proj.CRS',
+  code = 'EPSG:4326',
+  proj4def = '+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0',
+  resolutions = 2^(16:7))
+
+pal <- colorFactor(
+  palette = cols1,
+  domain = carto_x$Result
+)
+
+# Leaflet map
+leaflet(carto_x, options = leafletOptions(crs = epsg4326)) %>%
+  addPolygons(
+    color = "#444444", weight = 1, smoothFactor = 0.5,
+    label = labels2,
+    opacity = 1.0, fillOpacity = carto_x$fill_op, fillColor = cols1[as.factor(carto_x$Result)],
+    highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE)) %>%
+  addLegend("topright", pal = pal, values = ~Result,
+    title = "Voting result",
+    opacity = 1)
+```
+
+That is not too bad. Why don't we plot a ggplotly version
+
+```{r carto_ggplot_v2, message=FALSE, warning=FALSE}
+carto_x_df <- carto_x %>% tidy(region = 'LAD12NM')
+carto_x_df <- carto_x_df %>%
+  left_join(
+    data.frame(id = as.character(la_bng_new$LAD12NM),
+               Result = as.factor(la_bng_new$Result),
+               Pct_Remain = la_bng_new$Pct_Remain,
+               stringsAsFactors = F))
+# Rescaling Pct_Remain
+carto_x_df$Pct_Remain_2 <- carto_x_df$Pct_Remain
+carto_x_df$Pct_Remain_2[carto_x_df$id == 'Gibraltar'] <- carto_x_df$Pct_Remain_2[carto_x_df$id == 'Lambeth']
+
+# Re-order the data frame so that legend on the map follow logical order
+carto_x_df <- carto_x_df[order(carto_x_df$Pct_Remain_2), ]
+
+# Create the banding of Remain percentage
+col_vals <- carto_x_df$Pct_Remain_2
+min_pct <- 50 - max(abs(col_vals - 50))
+max_pct <- 50 + max(abs(col_vals - 50))
+carto_x_df$pct_banded <- cut(col_vals, seq(min_pct, max_pct, (max_pct - min_pct) / 11))
+
+# Make the legend labels prettier
+pct_labs <- as.character(carto_x_df$pct_banded)
+pct_labs <- substr(pct_labs, 2, nchar(pct_labs) - 1)
+tmp <- sapply(pct_labs, function(x) strsplit(x, split = ','))
+pct_labs <- sapply(tmp,
+  function(x) paste0(
+    formatC(as.numeric(x[1]), digits = 1, format = 'f'), '% - ',
+    formatC(as.numeric(x[2]), digits = 1, format = 'f'), '%'))
+carto_x_df$pct_banded <- as.factor(pct_labs)
+
+ggplot(data = carto_x_df, aes(x = long, y = lat, group = id)) +
+  theme_bw() + coord_fixed() + 
+  theme_nothing(legend = TRUE) +
+  ggtitle('EU Referendum 2016 Results Cartogram') +
+  geom_polygon(aes(fill = pct_banded), colour = 'gray40', size = 0.2) +
+  scale_fill_brewer(
+    name = 'Remain votes',
+    type = 'div', 
+    palette = 'RdBu',
+    breaks = carto_x_df$pct_banded,
+    labels = carto_x_df$pct_banded)
+```
+
+
+There we have it. All the source code is in my [repo](https://github.com/xinye1/brexit). Feel free to comment / pick bones.
+
+### Other cartogram related packages
+* [`topogRam`](https://github.com/pvictor/topogRam) - a `d3.js` based package

@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "starter.py", line 8, in <module>
+    for status in Cursor(client.search, q = 'libertylondon').items(num_item): 
+  File "C:\ProgramData\Anaconda3\lib\site-packages\tweepy\cursor.py", line 49, in __next__
+    return self.next()
+  File "C:\ProgramData\Anaconda3\lib\site-packages\tweepy\cursor.py", line 192, in next
+    if self.limit > 0:
+TypeError: '>' not supported between instances of 'str' and 'int'
