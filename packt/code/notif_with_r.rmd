@@ -2,7 +2,11 @@
 title: "Schedule Mobile Phone Notifications using R"
 author: "Xinye Li"
 date: "16 April 2017"
-output: html_document
+#output: html_document
+output:
+  html_document:
+    toc: true
+    toc_float: true
 ---
 
 The very active development of R means that there are fewer and fewer tasks that cannot be accomplished with R. Today let's schedule a custom push notification for the smartphone.
@@ -103,11 +107,11 @@ $ crontab -e
 Each line of a crontab file represents a job, and looks like this:
 
 ```
- ┌───────────── minute (0 - 59)
- │ ┌───────────── hour (0 - 23)
- │ │ ┌───────────── day of month (1 - 31)
- │ │ │ ┌───────────── month (1 - 12)
- │ │ │ │ ┌───────────── day of week (0 - 6) (Sunday to Saturday;
+ ┌──────── minute (0 - 59)
+ │ ┌──────── hour (0 - 23)
+ │ │ ┌──────── day of month (1 - 31)
+ │ │ │ ┌──────── month (1 - 12)
+ │ │ │ │ ┌──────── day of week (0 - 6) (Sunday to Saturday;
  │ │ │ │ │                                   7 is also Sunday)
  * * * * *  command to execute
 ```
