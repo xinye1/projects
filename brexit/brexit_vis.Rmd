@@ -399,7 +399,7 @@ ggplot(data = carto_x_df, aes(x = long, y = lat, group = id)) +
 ```
 
 
-There we have it. All the source code is in my [repo](https://github.com/xinye1/brexit). Feel free to comment / pick bones.
+There we have it. All the source code is in my [repo](https://github.com/xinye1/projects/tree/master/brexit). Feel free to comment / pick bones.
 
 ### Other cartogram related packages
 * [`topogRam`](https://github.com/pvictor/topogRam) - a `d3.js` based package
