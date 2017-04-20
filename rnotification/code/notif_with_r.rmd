@@ -15,7 +15,7 @@ The very active development of R means that there are fewer and fewer tasks that
 
 There are two motivations:
 
-1. There are websites that offer free stuff everyday. I have been taking the advantage of some free books but freqently find myself missing some that I would be quite interested simply because I forget to check the website (there are probably more socially acceptable ways like following them on twitter, but what's the fun in that?). I therefore want to have a daily notification on the phone that shows the book title, from which I will decide if I would like to go to the website and claim it.
+1. [Packt Publishing](https://www.packtpub.com/) sell great tech related books, and even better, they also offer a free book everyday on this page https://www.packtpub.com/packt/offers/free-learning. I have been taking the advantage of some free books but freqently find myself missing some that I would be quite interested simply because I forget to check the website (there are probably more socially acceptable ways like following them on twitter, but what's the fun in that?). I therefore want to have a daily notification on the phone that shows the book title, from which I will decide if I would like to go to the website and claim it.
 2. At work I may be required to implement R script automation, this makes a perfect practice case.
 
 # The plan
@@ -30,15 +30,13 @@ Here are the three simple steps:
 
 ## Scraping the book title
 
-Out of caution I contacted the website for which I intend to use this method, as its Terms and Conditions don't specify the knowledge sharing of web scraping on the site. Until I have explicit permission from them I will stick to a non-specific example for now.
-
 Hadley Wickham's `rvest` package is the [Beautiful Soup](https://www.crummy.com/software/BeautifulSoup/) for R, the *go to* package for web scraping. There are plenty of tutorials on the web, so I shall simply lay down the snippet here for completeness:
 
 ```{r scraping, eval=FALSE}
 pacman::p_load(rvest, stringr)
 
-url <- 'url.of.the/target/website'
-selector <- '#CSS > selector > for > the > element'
+url <- 'https://www.packtpub.com/packt/offers/free-learning'
+selector <- '#deal-of-the-day > div > div > div.dotd-main-book-summary.float-left > div.dotd-title > h2'
 book_title <- url %>%
   read_html %>%
   html_node(selector) %>%
@@ -76,13 +74,13 @@ When asked `Select a default device (0 for none): `, select the phone as the def
 Now we can test pushing a notification:
 
 ```{r rpushbullet_send, eval=FALSE}
-pbPost("link", title="Today's free book",
+pbPost("link", title="Today's Packt free book",
        url = url, body = book_title) 
 ```
 
 There's the notification that you made yourself, it's a whole new world!
 
-<img src="../img/notification.png" alt="notification" width="500">
+<img src="../img/notification2.png" alt="notification" width="500">
 
 It is easy to imagine how useful this is for running script on a remote server, e.g. if a script takes longer than you care to keep checking whether it has finished, it's an elegant to be notified - just add the snippet at the end of the script. In fact that's the majority of the use cases I see, definitely worth a try.
 
@@ -169,15 +167,15 @@ Now let's put everything together:
 #!/usr/bin/env Rscript
 pacman::p_load(rvest, stringr, RPushbullet)
 
-url <- 'url.of.the/target/website'
-selector <- '#CSS > selector > for > the > element'
+url <- 'https://www.packtpub.com/packt/offers/free-learning'
+selector <- '#deal-of-the-day > div > div > div.dotd-main-book-summary.float-left > div.dotd-title > h2'
 book_title <- url %>%
   read_html %>%
   html_node(selector) %>%
   html_text %>%
   str_trim
 
-pbPost("link", title="Today's free book",
+pbPost("link", title="Today's Packt free book",
        url = url, body = book_title) 
 ```  
 Save the script in `/projects` folder under the home directory (`~`).
@@ -193,4 +191,4 @@ $ chmod +x script.R
 0 9 * * * /home/ubuntu/projects/script.R
 ```
 
-Now enjoy the custom notifications that contribute to your well organised life!
+Voila! Enjoy the custom notifications that contribute to your well organised life!
