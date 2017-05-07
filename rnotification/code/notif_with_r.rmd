@@ -36,12 +36,11 @@ Hadley Wickham's `rvest` package is the [Beautiful Soup](https://www.crummy.com/
 pacman::p_load(rvest, stringr)
 
 url <- 'https://www.packtpub.com/packt/offers/free-learning'
-selector <- '#deal-of-the-day > div > div > div.dotd-main-book-summary.float-left > div.dotd-title > h2'
+selector <- 'div.dotd-title > h2'
 book_title <- url %>%
   read_html %>%
   html_node(selector) %>%
-  html_text %>%
-  str_trim
+  html_text(trim = T)
 ```
 
 ## Push notifications
