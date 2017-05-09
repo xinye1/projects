@@ -51,10 +51,7 @@ getHotelData <- function(url, max_page = NULL) {
     
     reviews <- page %>%
       html_nodes("#REVIEWS .innerBubble")
-    
-    # reviews <- page %>%
-    #   html_node('#taplc_hr_reviews_list_0') %>%
-    #   html_children %>%
+
     
     
     id <- reviews %>%
@@ -62,11 +59,8 @@ getHotelData <- function(url, max_page = NULL) {
       html_attr("id")
     
     quote <- reviews %>%
-      # html_node(".quote span") %>%
-      # html_node(" span.noQuotes") %>%
-      # html_node(".noQuotes") %>%
-      # html_text()
-      html_node('.quote .noQuotes') %>%
+    quote <- page %>%
+      html_nodes('.quote .noQuotes') %>%
       html_text()
     
     rating <- reviews %>%
