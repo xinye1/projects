@@ -36,3 +36,6 @@ vignettes/*.pdf
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
+
+# Selenium log files
+phantomjsdriver.log
