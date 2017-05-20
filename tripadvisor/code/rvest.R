@@ -1,7 +1,7 @@
 # Inspired by
 # http://notesofdabbler.github.io/201408_hotelReview/scrapeTripAdvisor.html
-
 pacman::p_load(rvest, dplyr, tidyverse, tidyr, stringr, xltools, lubridate)
+
 
 url_meridien_maritius <-
   'https://www.tripadvisor.co.uk/Hotel_Review-g298344-d302629-Reviews-Le_Meridien_Ile_Maurice-Pointe_Aux_Piments.html'
